@@ -20,7 +20,7 @@ namespace loggable {
     /**
      * @brief Defines the verbosity level of a log message.
      */
-    enum class LogLevel {
+    enum class LogLevel : std::uint8_t {
         None,
         Error,
         Warning,
@@ -29,6 +29,23 @@ namespace loggable {
         Verbose
     };
 
+    // Constexpr functions for LogLevel operations
+    [[nodiscard]] constexpr const char* log_level_to_string(LogLevel level) noexcept {
+        switch (level) {
+            case LogLevel::Error:   return "ERROR";
+            case LogLevel::Warning: return "WARNING";
+            case LogLevel::Info:    return "INFO";
+            case LogLevel::Debug:   return "DEBUG";
+            case LogLevel::Verbose: return "VERBOSE";
+            case LogLevel::None:    return "NONE";
+            default:                return "UNKNOWN";
+        }
+    }
+
+    [[nodiscard]] constexpr bool is_log_level_enabled(LogLevel message_level, LogLevel global_level) noexcept {
+        return message_level <= global_level;
+    }
+
     /**
      * @brief A structure representing a single log entry.
      *
@@ -36,11 +53,14 @@ namespace loggable {
      */
     class LogMessage {
     public:
-        LogMessage(std::chrono::system_clock::time_point timestamp, LogLevel level, std::string tag, std::string message)
+        LogMessage(std::chrono::system_clock::time_point timestamp, LogLevel level, std::string tag, std::string message) noexcept
             : _timestamp(timestamp), _level(level), _tag(std::move(tag)), _message(std::move(message)) {}
 
         LogMessage(const LogMessage&) = default;
         LogMessage& operator=(const LogMessage&) = default;
+        LogMessage(LogMessage&&) noexcept = default;
+        LogMessage& operator=(LogMessage&&) noexcept = default;
+        ~LogMessage() = default;
 
         [[nodiscard]] std::chrono::system_clock::time_point get_timestamp() const noexcept { return _timestamp; }
         [[nodiscard]] LogLevel get_level() const noexcept { return _level; }
@@ -82,11 +102,12 @@ namespace loggable {
     public:
         Sinker(const Sinker&) = delete;
         Sinker& operator=(const Sinker&) = delete;
+        ~Sinker() noexcept;
 
         /**
          * @brief Returns the singleton instance of the Sinker.
          */
-        static Sinker& instance();
+        [[nodiscard]] static Sinker& instance() noexcept;
 
         /**
          * @brief Registers a new log sinker.
@@ -96,13 +117,13 @@ namespace loggable {
          *
          * @param sinker A shared pointer to an ISinker implementation.
          */
-        void add_sinker(std::shared_ptr<ISink> sinker);
+        void add_sinker(std::shared_ptr<ISink> sinker) noexcept;
         
         /**
          * @brief Unregisters a log sinker.
          * @param sinker The sinker to remove.
          */
-        void remove_sinker(const std::shared_ptr<ISink>& sinker);
+        void remove_sinker(const std::shared_ptr<ISink>& sinker) noexcept;
 
         /**
          * @brief Sets the global minimum log level.
@@ -121,7 +142,7 @@ namespace loggable {
          * This is intended for internal use by the Logger class.
          * @param message The message to dispatch.
          */
-        void dispatch(const LogMessage& message);
+        void dispatch(const LogMessage& message) noexcept;
 
         /**
          * @brief Hooks into the ESP-IDF logging framework.
@@ -131,7 +152,7 @@ namespace loggable {
          *
          * @param install Set to true to install the hook, false to uninstall.
          */
-        void hook_esp_log(bool install);
+        void hook_esp_log(bool install) noexcept;
 
     private:
         friend int vprintf_hook(const char* format, va_list args);
@@ -156,7 +177,7 @@ namespace loggable {
          * @brief Internal implementation of the dispatch logic.
          * @param message The message to dispatch.
          */
-        void _dispatch_internal(const LogMessage& message);
+        void _dispatch_internal(const LogMessage& message) noexcept;
     };
 
     /**
@@ -169,13 +190,14 @@ namespace loggable {
     public:
         Logger(const Logger&) = delete;
         Logger& operator=(const Logger&) = delete;
+        ~Logger() noexcept = default;
 
         /**
          * @brief Logs a pre-formatted message.
          * @param level The message's severity level.
          * @param message The message content.
          */
-        void log(LogLevel level, std::string_view message);
+        void log(LogLevel level, std::string_view message) noexcept;
 
         /**
          * @brief Logs a printf-style formatted message.
@@ -183,7 +205,7 @@ namespace loggable {
          * @param format The printf-style format string.
          * @param ... Arguments for the format string.
          */
-        void logf(LogLevel level, const char* format, ...) __attribute__((format(printf, 3, 4)));
+        void logf(LogLevel level, const char* format, ...) noexcept __attribute__((format(printf, 3, 4)));
         
         /**
          * @brief Logs a printf-style formatted message using va_list.
@@ -191,7 +213,7 @@ namespace loggable {
          * @param format The printf-style format string.
          * @param args The va_list of arguments.
          */
-        void vlogf(LogLevel level, const char* format, va_list args);
+        void vlogf(LogLevel level, const char* format, va_list args) noexcept;
 
     private:
         // Private constructor, only Loggable can create it.
@@ -210,13 +232,18 @@ namespace loggable {
      */
     class Loggable {
     public:
+        Loggable() noexcept = default;
+        Loggable(const Loggable&) = delete;
+        Loggable& operator=(const Loggable&) = delete;
+        Loggable(Loggable&&) noexcept = delete;
+        Loggable& operator=(Loggable&&) noexcept = delete;
+        virtual ~Loggable() = default;
+
         /**
          * @brief Returns a reference to the Logger instance for this object.
          * The Logger is created on first access.
          */
-        Logger& logger();
-
-        virtual ~Loggable() = default;
+        [[nodiscard]] Logger& logger() noexcept;
 
     protected:
         /**
@@ -227,7 +254,9 @@ namespace loggable {
         friend class Logger;
 
     private:
-        std::unique_ptr<Logger> _logger;
+        mutable std::mutex _logger_mutex;
+        mutable std::unique_ptr<Logger> _logger;
+        mutable std::once_flag _logger_init_flag;
     };
 
 } // namespace loggable
