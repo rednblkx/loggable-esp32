@@ -19,7 +19,6 @@ namespace loggable {
     // Thread-local buffer state to avoid race conditions
     struct ThreadBufferState {
         std::string log_buffer;
-        bool buffering_log{false};
     };
     
     static ThreadBufferState& get_thread_buffer() {
@@ -27,150 +26,82 @@ namespace loggable {
         return buffer_state;
     }
 
+    namespace {
+    void cleanup_message(std::string& message) {
+        // Check if any ANSI escape codes are likely present before attempting removal.
+        if (message.find("\033[") != std::string::npos) {
+            size_t start_pos = 0;
+            while ((start_pos = message.find("\033[", start_pos)) != std::string::npos) {
+                size_t end_pos = message.find('m', start_pos);
+                if (end_pos == std::string::npos) {
+                    break; // Malformed sequence
+                }
+                message.erase(start_pos, end_pos - start_pos + 1);
+            }
+        }
+
+        if (!message.empty() && message.back() == '\n') {
+            message.pop_back();
+        }
+    }
+    } // namespace
+
     // The C-style vprintf function that will be hooked into ESP-IDF.
-    // It is a friend of the Sinker class, allowing it to call the private `dispatch_from_hook` method.
     int vprintf_hook(const char* format, va_list args) {
         // Use a thread-local guard to prevent recursive logging
         thread_local bool is_logging = false;
         if (is_logging) {
-            return 0; // Recursive call detected, abort immediately.
+            return 0;
         }
-        
         is_logging = true;
-        // RAII guard to ensure is_logging is reset
         struct LoggingGuard {
             bool& flag;
             ~LoggingGuard() { flag = false; }
         } guard{is_logging};
 
-        // First, pass the log to the original vprintf function to maintain default serial output.
         if (original_vprintf) {
-            original_vprintf(format, args);
+            va_list args_copy;
+            va_copy(args_copy, args);
+            original_vprintf(format, args_copy);
+            va_end(args_copy);
         }
 
-        // Use a stack buffer for small messages to avoid heap allocation for performance.
         char static_buf[128];
-        int size = std::vsnprintf(static_buf, sizeof(static_buf), format, args);
+        va_list args_copy;
+        va_copy(args_copy, args);
+        int size = std::vsnprintf(static_buf, sizeof(static_buf), format, args_copy);
+        va_end(args_copy);
 
         if (size < 0) {
-            return 0; // Formatting error
+            return 0;
         }
-
-        std::string formatted_message;
-        if (static_cast<size_t>(size) < sizeof(static_buf)) {
-            // The message fit into the stack buffer.
-            formatted_message = std::string(static_buf);
-        } else {
-            // The message was too large; allocate a buffer on the heap.
-            std::vector<char> dynamic_buf(static_cast<size_t>(size) + 1);
-            std::vsnprintf(dynamic_buf.data(), dynamic_buf.size(), format, args);
-            formatted_message = std::string(dynamic_buf.data());
+        
+        std::string_view formatted_message_view(static_buf, size);
+        
+        std::string dynamic_message;
+        if (static_cast<size_t>(size) >= sizeof(static_buf)) {
+            dynamic_message.resize(size);
+            va_copy(args_copy, args);
+            std::vsnprintf(dynamic_message.data(), dynamic_message.size() + 1, format, args_copy);
+            va_end(args_copy);
+            formatted_message_view = dynamic_message;
         }
-
-        // Check if this is a color encoding start (beginning of a log message)
-        bool is_color_start = (formatted_message.length() >= 2 && formatted_message[0] == '\033');
-        // Check if this is a color encoding end (end of a log message)
-        bool is_color_end = (formatted_message.find("\033[0m") != std::string::npos) ||
-                           (formatted_message.length() > 0 && formatted_message.back() == '\n');
-
-        // Get the distributor instance
-        auto& distributor = Sinker::instance();
+        
         auto& buffer_state = get_thread_buffer();
 
-        // If we're buffering and this is the end color, finalize the message
-        if (buffer_state.buffering_log && is_color_end) {
-            // Add this part to the buffer
-            buffer_state.log_buffer += formatted_message;
-            
-            // Process the complete buffered message
+        buffer_state.log_buffer.append(formatted_message_view);
+
+        // Process the buffer only when a complete line is detected (ends with a newline).
+        if (!buffer_state.log_buffer.empty() && buffer_state.log_buffer.back() == '\n') {
             std::string complete_message = std::move(buffer_state.log_buffer);
-            buffer_state.log_buffer.clear();
-            buffer_state.buffering_log = false;
             
-            // Remove color encoding from the complete message
-            // Handle multiple color encoding sequences
-            while (true) {
-                // Start color encoding pattern: \033[0;3xm where x is the color code
-                size_t start_pos = complete_message.find("\033[0;");
-                if (start_pos == std::string::npos) {
-                    break;
-                }
-                // Find the end of the start color encoding (after the 'm')
-                size_t end_pos = complete_message.find('m', start_pos);
-                if (end_pos == std::string::npos) {
-                    break;
-                }
-                // Remove the start color encoding
-                complete_message.erase(start_pos, end_pos - start_pos + 1);
-            }
-
-            // Remove end color encoding
-            while (true) {
-                size_t reset_pos = complete_message.find("\033[0m");
-                if (reset_pos == std::string::npos) {
-                    break;
-                }
-                complete_message.erase(reset_pos, 4); // 4 is the length of "\033[0m"
-            }
-
-            // Remove trailing newline if present
-            if (!complete_message.empty() && complete_message.back() == '\n') {
-                complete_message.pop_back();
-            }
-
-            // Process non-empty messages
+            buffer_state.log_buffer.clear();
+            
+            cleanup_message(complete_message);
             if (!complete_message.empty()) {
-                distributor.dispatch_from_hook(complete_message);
+                Sinker::instance().dispatch_from_hook(complete_message);
             }
         }
-        // If we're already buffering, add this message to the buffer
-        else if (buffer_state.buffering_log) {
-            buffer_state.log_buffer += formatted_message;
-        }
-        // If this is a start color, begin buffering
-        else if (is_color_start) {
-            buffer_state.log_buffer = formatted_message;
-            buffer_state.buffering_log = true;
-        }
-        // Handle normal single-part messages
-        else {
-            // Remove color encoding from the message
-            // Handle multiple color encoding sequences
-            while (true) {
-                // Start color encoding pattern: \033[0;3xm where x is the color code
-                size_t start_pos = formatted_message.find("\033[0;");
-                if (start_pos == std::string::npos) {
-                    break;
-                }
-                // Find the end of the start color encoding (after the 'm')
-                size_t end_pos = formatted_message.find('m', start_pos);
-                if (end_pos == std::string::npos) {
-                    break;
-                }
-                // Remove the start color encoding
-                formatted_message.erase(start_pos, end_pos - start_pos + 1);
-            }
-
-            // Remove end color encoding
-            while (true) {
-                size_t reset_pos = formatted_message.find("\033[0m");
-                if (reset_pos == std::string::npos) {
-                    break;
-                }
-                formatted_message.erase(reset_pos, 4); // 4 is the length of "\033[0m"
-            }
-
-            // Remove trailing newline if present
-            if (!formatted_message.empty() && formatted_message.back() == '\n') {
-                formatted_message.pop_back();
-            }
-
-            // Process non-empty messages
-            if (!formatted_message.empty()) {
-                distributor.dispatch_from_hook(formatted_message);
-            }
-        }
-
         return size;
     }
 
