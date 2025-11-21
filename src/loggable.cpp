@@ -9,6 +9,7 @@
 #include <memory>
 #include <string_view>
 #include <utility>
+#include <charconv>
 
 namespace loggable {
 
@@ -185,6 +186,7 @@ namespace loggable {
         LogLevel level = LogLevel::Info;
         std::string tag;  // Empty by default
         std::string payload;
+        std::chrono::system_clock::time_point timestamp = std::chrono::system_clock::now();
 
         // A typical ESP-IDF log looks like: "L (TIME) TAG: MESSAGE"
         // We only parse if it looks like it has the right structure.
@@ -202,6 +204,22 @@ namespace loggable {
             const size_t payload_start = message.find(':', tag_end);
 
             if (tag_end != std::string_view::npos && payload_start != std::string_view::npos && tag_end + 1 < message.length()) {
+                // Extract timestamp (milliseconds since boot) from between '(' and ')'
+                if (tag_start != std::string_view::npos && tag_end > tag_start + 1) {
+                    const size_t timestamp_start = tag_start + 1;
+                    const size_t timestamp_length = tag_end - timestamp_start;
+                    std::string_view timestamp_str = message.substr(timestamp_start, timestamp_length);
+                    
+                    // Parse the timestamp (milliseconds since boot)
+                    unsigned long millis_since_boot = 0;
+                    auto [ptr, ec] = std::from_chars(timestamp_str.data(), timestamp_str.data() + timestamp_str.size(), millis_since_boot);
+                    
+                    if (ec == std::errc()) {
+                        // Use the raw milliseconds value as the timestamp
+                        timestamp = std::chrono::system_clock::time_point(std::chrono::milliseconds(millis_since_boot));
+                    }
+                }
+                
                 // Check if there's a space after the closing parenthesis
                 if (message[tag_end + 1] == ' ') {
                     // Extract tag between ') ' and ':'
@@ -228,7 +246,7 @@ namespace loggable {
             payload = std::string(message);
         }
         
-        LogMessage log_msg(std::chrono::system_clock::now(), level, std::move(tag), std::move(payload));
+        LogMessage log_msg(timestamp, level, std::move(tag), std::move(payload));
         // Dispatch to sinkers under lock
         _dispatch_internal(log_msg);
     }
