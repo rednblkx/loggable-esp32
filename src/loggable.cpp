@@ -50,7 +50,7 @@ namespace loggable {
     // The C-style vprintf function that will be hooked into ESP-IDF.
     int vprintf_hook(const char* format, va_list args) {
         // Use a thread-local guard to prevent recursive logging
-        thread_local bool is_logging = false;
+        thread_local static bool is_logging = false;
         if (is_logging) {
             return 0;
         }
