@@ -73,7 +73,7 @@ namespace loggable {
         int size = std::vsnprintf(static_buf, sizeof(static_buf), format, args_copy);
         va_end(args_copy);
 
-        if (size < 0) {
+        if (size < 0) [[unlikely]] {
             return 0;
         }
         
@@ -169,7 +169,7 @@ namespace loggable {
         // Internal method to dispatch messages to sinkers, guarded by the caller.
         if (is_log_level_enabled(message.get_level(), _global_level)) {
             for (const auto& sinker : _sinkers) {
-                if (sinker) {
+                if (sinker) [[likely]] {
                     // In embedded systems without exceptions, we assume consume() succeeds
                     sinker->consume(message);
                 }
@@ -281,7 +281,7 @@ namespace loggable {
         int size = std::vsnprintf(nullptr, 0, format, args_copy);
         va_end(args_copy);
 
-        if (size < 0) {
+        if (size < 0) [[unlikely]] {
             return; // Encoding error
         }
 
