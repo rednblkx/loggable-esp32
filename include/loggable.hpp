@@ -167,7 +167,7 @@ namespace loggable {
 
         LogLevel _global_level{LogLevel::Info};
         std::vector<std::shared_ptr<ISink>> _sinkers;
-        mutable std::mutex _mutex;
+        mutable std::recursive_mutex _mutex;
         
         // Buffer for multi-part log messages
         std::string _log_buffer;

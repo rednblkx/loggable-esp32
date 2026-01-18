@@ -122,7 +122,7 @@ namespace loggable {
 
     void Sinker::add_sinker(std::shared_ptr<ISink> sinker) noexcept {
         if (sinker) {
-            std::lock_guard<std::mutex> lock(_mutex);
+            std::lock_guard<std::recursive_mutex> lock(_mutex);
             // In embedded systems without exceptions, we assume allocation succeeds
             // or the system handles allocation failures at a higher level
             _sinkers.push_back(std::move(sinker));
@@ -131,32 +131,32 @@ namespace loggable {
 
     void Sinker::remove_sinker(const std::shared_ptr<ISink>& sinker) noexcept {
         if (sinker) {
-            std::lock_guard<std::mutex> lock(_mutex);
+            std::lock_guard<std::recursive_mutex> lock(_mutex);
             // std::erase doesn't throw in C++17
             std::erase(_sinkers, sinker);
         }
     }
 
     void Sinker::set_level(LogLevel level) noexcept {
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
         _global_level = level;
     }
 
     LogLevel Sinker::get_level() const noexcept {
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
         return _global_level;
     }
 
     void Sinker::dispatch(const LogMessage& message) noexcept {
         // This is the public dispatch method. We can add more logic here if needed.
         // For now, it directly calls the internal dispatcher.
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
         // In embedded systems without exceptions, we assume operations succeed
         _dispatch_internal(message);
     }
 
     void Sinker::hook_esp_log(bool install) noexcept {
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
         if (install && !esp_log_hook_installed.load(std::memory_order_acquire)) {
             original_vprintf = esp_log_set_vprintf(&vprintf_hook);
             esp_log_hook_installed.store(true, std::memory_order_release);
@@ -248,6 +248,7 @@ namespace loggable {
         
         LogMessage log_msg(timestamp, level, std::move(tag), std::move(payload));
         // Dispatch to sinkers under lock
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
         _dispatch_internal(log_msg);
     }
 
