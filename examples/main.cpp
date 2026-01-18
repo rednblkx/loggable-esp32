@@ -4,8 +4,8 @@
 #include <thread>
 #include <esp_log.h>
 #include "loggable.hpp"
+#include "loggable_espidf.hpp"
 
-// Use the new namespace
 using namespace loggable;
 
 /**
@@ -53,7 +53,7 @@ public:
 
 protected:
     // Implement the log_name() method to provide a tag for the logger
-    const char* log_name() const noexcept override {
+    std::string_view log_name() const noexcept override {
         return "MyAppComponent";
     }
 };
@@ -79,20 +79,20 @@ extern "C" void app_main(void) {
 
     // 5. Demonstrate direct logging with a different logger
     struct AnotherComponent : Loggable {
-        const char* log_name() const noexcept override { return "AnotherComponent"; }
+        std::string_view log_name() const noexcept override { return "AnotherComponent"; }
     } another_app;
     
     another_app.logger().logf(LogLevel::Error, "This is a critical error from another component!");
 
-    // 6. Hook into ESP_LOGI to prove it works
+    // 6. Hook into ESP_LOGI to prove it works (using the new loggable_espidf component)
     std::cout << "\n--- Installing ESP-IDF Log Hook ---" << std::endl;
-    distributor.hook_esp_log(true);
+    espidf::LogHook::install();
 
     // This log will be captured by our distributor and printed by ConsoleSinker
     ESP_LOGI("ESP_LOG_TEST", "This message from ESP_LOGI should be captured.");
 
     // 7. Unhook and unregister
-    distributor.hook_esp_log(false);
+    espidf::LogHook::uninstall();
     distributor.remove_sinker(console_sinker_ptr);
     
     std::cout << "\n--- Example Finished ---" << std::endl;

@@ -10,9 +10,6 @@
 
 namespace loggable {
 
-    // Forward declaration for the C-style hook function
-    int vprintf_hook(const char* format, va_list args);
-
     // Forward declarations
     class Logger;
     class Loggable;
@@ -105,7 +102,7 @@ namespace loggable {
     public:
         Sinker(const Sinker&) = delete;
         Sinker& operator=(const Sinker&) = delete;
-        ~Sinker() noexcept;
+        ~Sinker() noexcept = default;
 
         /**
          * @brief Returns the singleton instance of the Sinker.
@@ -147,26 +144,8 @@ namespace loggable {
          */
         void dispatch(const LogMessage& message) noexcept;
 
-        /**
-         * @brief Hooks into the ESP-IDF logging framework.
-         *
-         * When installed, all logs made via `ESP_LOGx` macros will be redirected
-         * through this distributor.
-         *
-         * @param install Set to true to install the hook, false to uninstall.
-         */
-        void hook_esp_log(bool install) noexcept;
-
     private:
-        friend int vprintf_hook(const char* format, va_list args);
-
         Sinker() = default;
-
-        /**
-         * @brief Internal, thread-safe method to process a raw string from a C-style hook.
-         * @param message The raw, formatted log message.
-         */
-        void dispatch_from_hook(std::string_view message);
 
         std::atomic<LogLevel> _global_level{LogLevel::Info};
         std::vector<std::shared_ptr<ISink>> _sinkers;
