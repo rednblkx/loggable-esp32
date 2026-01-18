@@ -39,8 +39,10 @@ namespace loggable {
             case LogLevel::Debug:   return "DEBUG";
             case LogLevel::Verbose: return "VERBOSE";
             case LogLevel::None:    return "NONE";
-            default:                return "UNKNOWN";
         }
+        // All enum values handled above; this is unreachable
+        static_assert(static_cast<int>(LogLevel::Verbose) == 5, "LogLevel enum changed, update switch");
+        return "UNKNOWN"; // Satisfy compiler return requirement
     }
 
     [[nodiscard]] constexpr bool is_log_level_enabled(LogLevel message_level, LogLevel global_level) noexcept {
