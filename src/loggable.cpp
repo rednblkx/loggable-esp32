@@ -13,38 +13,35 @@
 
 namespace loggable {
 
-    // Global state for the C-style hook
-    static vprintf_like_t original_vprintf = nullptr;
-    static std::atomic<bool> esp_log_hook_installed{false};
-    
-    // Thread-local buffer state to avoid race conditions
     struct ThreadBufferState {
         std::string log_buffer;
     };
-    
-    static ThreadBufferState& get_thread_buffer() {
-        static thread_local ThreadBufferState buffer_state;
-        return buffer_state;
-    }
 
     namespace {
-    void cleanup_message(std::string& message) {
-        // Check if any ANSI escape codes are likely present before attempting removal.
-        if (message.find("\033[") != std::string::npos) {
-            size_t start_pos = 0;
-            while ((start_pos = message.find("\033[", start_pos)) != std::string::npos) {
-                size_t end_pos = message.find('m', start_pos);
-                if (end_pos == std::string::npos) {
-                    break; // Malformed sequence
-                }
-                message.erase(start_pos, end_pos - start_pos + 1);
-            }
-        }
+      static vprintf_like_t original_vprintf = nullptr;
+      static std::atomic<bool> esp_log_hook_installed{false};
 
-        if (!message.empty() && message.back() == '\n') {
-            message.pop_back();
-        }
-    }
+      static ThreadBufferState& get_thread_buffer() {
+          static thread_local ThreadBufferState buffer_state;
+          return buffer_state;
+      }
+      void cleanup_message(std::string& message) {
+          // Check if any ANSI escape codes are likely present before attempting removal.
+          if (message.find("\033[") != std::string::npos) {
+              size_t start_pos = 0;
+              while ((start_pos = message.find("\033[", start_pos)) != std::string::npos) {
+                  size_t end_pos = message.find('m', start_pos);
+                  if (end_pos == std::string::npos) {
+                      break; // Malformed sequence
+                  }
+                  message.erase(start_pos, end_pos - start_pos + 1);
+              }
+          }
+
+          if (!message.empty() && message.back() == '\n') {
+              message.pop_back();
+          }
+      }
     } // namespace
 
     // The C-style vprintf function that will be hooked into ESP-IDF.
