@@ -166,13 +166,11 @@ namespace loggable {
     }
  
     void Sinker::_dispatch_internal(const LogMessage& message) noexcept {
-        // Internal method to dispatch messages to sinkers, guarded by the caller.
-        if (is_log_level_enabled(message.get_level(), _global_level)) {
-            for (const auto& sinker : _sinkers) {
-                if (sinker) [[likely]] {
-                    // In embedded systems without exceptions, we assume consume() succeeds
-                    sinker->consume(message);
-                }
+        // Internal method to dispatch messages to sinkers.
+        // Level filtering is done by caller; this method just dispatches.
+        for (const auto& sinker : _sinkers) {
+            if (sinker) [[likely]] {
+                sinker->consume(message);
             }
         }
     }
