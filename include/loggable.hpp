@@ -247,9 +247,10 @@ namespace loggable {
     protected:
         /**
          * @brief Implement this to provide a name for the log source.
-         * @return A C-style string representing the component's name.
+         * @return A string_view representing the component's name.
+         * @note The returned string_view must remain valid for the lifetime of the object.
          */
-        [[nodiscard]] virtual const char* log_name() const noexcept = 0;
+        [[nodiscard]] virtual std::string_view log_name() const noexcept = 0;
         friend class Logger;
 
     private:

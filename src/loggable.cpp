@@ -254,7 +254,7 @@ namespace loggable {
             return;
         }
         const auto now = std::chrono::system_clock::now();
-        const char* tag = _owner.log_name();
+        std::string_view tag = _owner.log_name();
         LogMessage msg(now, level, std::string(tag), std::string(message));
         Sinker::instance().dispatch(msg);
     }
