@@ -16,7 +16,7 @@ For platform-specific integrations, use separate adapter components:
 
 | Platform | Component | Description |
 |----------|-----------|-------------|
-| ESP-IDF  | `loggable_espidf` | Hooks into `ESP_LOGx` macros via `esp_log_set_vprintf` |
+| ESP-IDF  | [`loggable_espidf`](https://github.com/rednblkx/loggable-espidf) | Hooks into `ESP_LOGx` macros via `esp_log_set_vprintf` |
 
 ## API Reference
 
