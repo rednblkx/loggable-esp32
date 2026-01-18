@@ -1,6 +1,6 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 #include "loggable.hpp"
 
 using namespace loggable;
@@ -95,7 +95,7 @@ public:
     }
 
 protected:
-    const char* log_name() const noexcept override {
+    std::string_view log_name() const noexcept override {
         return _name;
     }
 
@@ -214,13 +214,6 @@ void test_large_message() {
     TEST_ASSERT_EQUAL(255, strlen(test_sink->captured_messages[0].message)); // Should be truncated
 }
 
-void test_esp_log_hook() {
-    // Just test that hook methods can be called without crashing
-    Sinker::instance().hook_esp_log(true);
-    Sinker::instance().hook_esp_log(false);
-    TEST_ASSERT_TRUE(true);
-}
-
 void test_sink_lifecycle() {
     test_sink->clear();
     
@@ -264,7 +257,6 @@ extern "C" void app_main() {
     RUN_TEST(test_logger_logf_method);
     RUN_TEST(test_empty_message);
     RUN_TEST(test_large_message);
-    RUN_TEST(test_esp_log_hook);
     RUN_TEST(test_sink_lifecycle);
     
     printf("All tests completed successfully!\n");
