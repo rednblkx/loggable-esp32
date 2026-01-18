@@ -6,6 +6,7 @@
 #include <mutex>
 #include <chrono>
 #include <cstdarg>
+#include <atomic>
 
 namespace loggable {
 
@@ -165,7 +166,7 @@ namespace loggable {
          */
         void dispatch_from_hook(std::string_view message);
 
-        LogLevel _global_level{LogLevel::Info};
+        std::atomic<LogLevel> _global_level{LogLevel::Info};
         std::vector<std::shared_ptr<ISink>> _sinkers;
         mutable std::recursive_mutex _mutex;
         

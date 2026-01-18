@@ -138,13 +138,11 @@ namespace loggable {
     }
 
     void Sinker::set_level(LogLevel level) noexcept {
-        std::lock_guard<std::recursive_mutex> lock(_mutex);
-        _global_level = level;
+        _global_level.store(level, std::memory_order_release);
     }
 
     LogLevel Sinker::get_level() const noexcept {
-        std::lock_guard<std::recursive_mutex> lock(_mutex);
-        return _global_level;
+        return _global_level.load(std::memory_order_acquire);
     }
 
     void Sinker::dispatch(const LogMessage& message) noexcept {
