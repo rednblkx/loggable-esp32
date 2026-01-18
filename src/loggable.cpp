@@ -132,7 +132,6 @@ namespace loggable {
     void Sinker::remove_sinker(const std::shared_ptr<ISink>& sinker) noexcept {
         if (sinker) {
             std::lock_guard<std::recursive_mutex> lock(_mutex);
-            // std::erase doesn't throw in C++17
             std::erase(_sinkers, sinker);
         }
     }
