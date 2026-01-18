@@ -56,7 +56,7 @@ namespace loggable {
         }
         is_logging = true;
         struct LoggingGuard {
-            bool& flag;
+            bool flag;
             ~LoggingGuard() { flag = false; }
         } guard{is_logging};
 
