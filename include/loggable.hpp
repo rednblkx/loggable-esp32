@@ -169,10 +169,6 @@ namespace loggable {
         std::atomic<LogLevel> _global_level{LogLevel::Info};
         std::vector<std::shared_ptr<ISink>> _sinkers;
         mutable std::recursive_mutex _mutex;
-        
-        // Buffer for multi-part log messages
-        std::string _log_buffer;
-        bool _buffering_log{false};
 
         /**
          * @brief Internal implementation of the dispatch logic.
