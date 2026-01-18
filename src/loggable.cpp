@@ -189,6 +189,7 @@ namespace loggable {
                 case 'I': level = LogLevel::Info; break;
                 case 'D': level = LogLevel::Debug; break;
                 case 'V': level = LogLevel::Verbose; break;
+                default: break;
             }
 
             const size_t tag_start = message.find('(');
