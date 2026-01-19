@@ -36,6 +36,7 @@ namespace loggable {
     class ISink {
     public:
         virtual ~ISink() = default;
+        // Careful: this is called from a loop, so make sure this doesn't block
         virtual void consume(const LogMessage& message) = 0;
     };
 

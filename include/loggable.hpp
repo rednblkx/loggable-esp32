@@ -86,6 +86,7 @@ namespace loggable {
 
         /**
          * @brief Processes and outputs a log message.
+         * CAREFUL: This should not block.
          * @param message The log message to append.
          */
         virtual void consume(const LogMessage& message) = 0;
