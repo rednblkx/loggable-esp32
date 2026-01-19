@@ -5,8 +5,9 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
-#include <cstdarg>
 #include <atomic>
+#include <fmt/core.h>
+#include <fmt/format.h>
 
 namespace loggable {
 
@@ -30,12 +31,12 @@ namespace loggable {
     // Constexpr functions for LogLevel operations
     [[nodiscard]] constexpr const char* log_level_to_string(LogLevel level) noexcept {
         switch (level) {
-            case LogLevel::Error:   return "ERROR";
-            case LogLevel::Warning: return "WARNING";
-            case LogLevel::Info:    return "INFO";
-            case LogLevel::Debug:   return "DEBUG";
-            case LogLevel::Verbose: return "VERBOSE";
-            case LogLevel::None:    return "NONE";
+            case LogLevel::Error:   return "E";
+            case LogLevel::Warning: return "W";
+            case LogLevel::Info:    return "I";
+            case LogLevel::Debug:   return "D";
+            case LogLevel::Verbose: return "V";
+            case LogLevel::None:    return "N";
         }
         // All enum values handled above; this is unreachable
         static_assert(static_cast<int>(LogLevel::Verbose) == 5, "LogLevel enum changed, update switch");
@@ -179,22 +180,22 @@ namespace loggable {
         void log(LogLevel level, std::string_view message) noexcept;
 
         /**
-         * @brief Logs a printf-style formatted message.
+         * @brief Logs a fmt-style formatted message.
          * @param level The message's severity level.
-         * @param format The printf-style format string.
-         * @param ... Arguments for the format string.
+         * @param format_str The fmt-style format string.
+         * @param args Arguments for the format string.
+         * @note Use the LOGF macro to auto-prepend function name.
          */
-        void logf(LogLevel level, const char* format, ...) noexcept __attribute__((format(printf, 3, 4)));
-        
-        /**
-         * @brief Logs a printf-style formatted message using va_list.
-         * @param level The message's severity level.
-         * @param format The printf-style format string.
-         * @param args The va_list of arguments.
-         */
-        void vlogf(LogLevel level, const char* format, va_list args) noexcept;
+        template<typename... Args>
+        void logf(LogLevel level, fmt::format_string<Args...> format_str, Args&&... args) noexcept {
+            if (!is_log_level_enabled(level, Sinker::instance().get_level())) {
+                return;
+            }
+            fmt::memory_buffer buf;
+            fmt::format_to(std::back_inserter(buf), format_str, std::forward<Args>(args)...);
+            log(level, std::string_view(buf.data(), buf.size()));
+        }
 
-    private:
         // Private constructor, only Loggable can create it.
         explicit Logger(Loggable& owner) : _owner(owner) {}
 
@@ -234,3 +235,14 @@ namespace loggable {
     };
 
 } // namespace loggable
+
+/**
+ * @brief Macro for logging with automatic function name prefix.
+ * @param level The log level (e.g., LogLevel::Info).
+ * @param format_str The fmt-style format string.
+ * @param ... Arguments for the format string.
+ * 
+ * Usage: LOGF(LogLevel::Info, "Hello, {}!", name);
+ */
+#define LOGF(level, format_str, ...) \
+    logger().logf(level, "{}: " format_str, __func__ __VA_OPT__(,) __VA_ARGS__)

@@ -1,13 +1,13 @@
 #include "loggable.hpp"
+#include <memory>
 #include <vector>
 #include <mutex>
-#include <algorithm>
-#include <cstdarg>
-#include <cstdio>
 #include <atomic>
 #include <memory>
 #include <string_view>
 #include <utility>
+#include <fmt/core.h>
+#include <fmt/format.h>
 
 namespace loggable {
 
@@ -64,40 +64,12 @@ namespace loggable {
         LogMessage msg(now, level, std::string(tag), std::string(message));
         Sinker::instance().dispatch(msg);
     }
-    
-    void Logger::logf(LogLevel level, const char* format, ...) noexcept {
-        if (!is_log_level_enabled(level, Sinker::instance().get_level())) {
-            return;
-        }
-        va_list args;
-        va_start(args, format);
-        vlogf(level, format, args);
-        va_end(args);
-    }
-
-    void Logger::vlogf(LogLevel level, const char* format, va_list args) noexcept {
-        if (!is_log_level_enabled(level, Sinker::instance().get_level())) {
-            return;
-        }
-        va_list args_copy;
-        va_copy(args_copy, args);
-        int size = std::vsnprintf(nullptr, 0, format, args_copy);
-        va_end(args_copy);
-
-        if (size < 0) [[unlikely]] {
-            return; // Encoding error
-        }
-
-        std::vector<char> buf(static_cast<size_t>(size) + 1);
-        std::vsnprintf(buf.data(), buf.size(), format, args);
-        log(level, std::string_view(buf.data(), static_cast<size_t>(size)));
-    }
 
     // --- Loggable Implementation ---
 
     Logger& Loggable::logger() noexcept {
         std::call_once(_logger_init_flag, [this]() {
-            _logger = std::unique_ptr<Logger>(new Logger(*this));
+            _logger = std::make_unique<Logger>(*this);
         });
         return *_logger;
     }
