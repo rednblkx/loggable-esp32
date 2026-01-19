@@ -211,7 +211,7 @@ namespace loggable {
      */
     class Loggable {
     public:
-        Loggable() noexcept = default;
+        explicit Loggable(std::string_view name) : _name(name) {}
         Loggable(const Loggable&) = delete;
         Loggable& operator=(const Loggable&) = delete;
         Loggable(Loggable&&) noexcept = delete;
@@ -224,16 +224,10 @@ namespace loggable {
          */
         [[nodiscard]] Logger& logger() noexcept;
 
-    protected:
-        /**
-         * @brief Implement this to provide a name for the log source.
-         * @return A string_view representing the component's name.
-         * @note The returned string_view must remain valid for the lifetime of the object.
-         */
-        [[nodiscard]] virtual std::string_view log_name() const noexcept = 0;
-        friend class Logger;
 
     private:
+        friend class Logger;
+        std::string_view _name;
         mutable std::mutex _logger_mutex;
         mutable std::unique_ptr<Logger> _logger;
         mutable std::once_flag _logger_init_flag;
