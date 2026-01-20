@@ -3,7 +3,6 @@
 #include <vector>
 #include <mutex>
 #include <atomic>
-#include <memory>
 #include <string_view>
 #include <utility>
 #include <fmt/core.h>

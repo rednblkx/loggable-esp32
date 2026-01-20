@@ -3,6 +3,14 @@ if(ESP_PLATFORM)
         SRCS "src/loggable.cpp"
         INCLUDE_DIRS "include"
     )
+    include(FetchContent)
+
+    FetchContent_Declare(
+      fmt
+      GIT_REPOSITORY https://github.com/fmtlib/fmt
+      GIT_TAG        12.1.0)
+    FetchContent_MakeAvailable(fmt)
+    target_link_libraries(${COMPONENT_LIB} PUBLIC fmt::fmt-header-only)
 else()
     project(loggable)
     set(CMAKE_CXX_STANDARD 20)
