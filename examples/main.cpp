@@ -39,22 +39,18 @@ public:
  */
 class MyAppComponent : public Loggable {
 public:
+    MyAppComponent() : Loggable("MyAppComponent") {}
+
     void do_something() {
         // Use the logger() method provided by the Loggable base class
         logger().logf(LogLevel::Info, "Starting operation...");
         
         for (int i = 0; i < 3; ++i) {
-            logger().logf(LogLevel::Debug, "Processing item #%d", i + 1);
+            logger().logf(LogLevel::Debug, "Processing item #{}", i + 1);
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
         logger().log(LogLevel::Warning, "Operation completed with a minor issue.");
-    }
-
-protected:
-    // Implement the log_name() method to provide a tag for the logger
-    std::string_view log_name() const noexcept override {
-        return "MyAppComponent";
     }
 };
 
@@ -69,7 +65,6 @@ extern "C" void app_main(void) {
     distributor.set_level(LogLevel::Debug);
 
     // 3. Create and register an sinker
-    ConsoleSinker console_sinker;
     auto console_sinker_ptr = std::make_shared<ConsoleSinker>();
     distributor.add_sinker(console_sinker_ptr);
 
@@ -79,7 +74,7 @@ extern "C" void app_main(void) {
 
     // 5. Demonstrate direct logging with a different logger
     struct AnotherComponent : Loggable {
-        std::string_view log_name() const noexcept override { return "AnotherComponent"; }
+        AnotherComponent() : Loggable("AnotherComponent") {}
     } another_app;
     
     another_app.logger().logf(LogLevel::Error, "This is a critical error from another component!");

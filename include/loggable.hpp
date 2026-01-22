@@ -9,11 +9,12 @@
 #include <string_view>
 #include <vector>
 
+#include "loggable_os.hpp"
+#include "loggable_ringbuffer.hpp"
+
 namespace loggable {
 
 // Forward declarations
-class Logger;
-class Loggable;
 class Sinker;
 
 /**
@@ -63,6 +64,8 @@ is_log_level_enabled(LogLevel message_level, LogLevel global_level) noexcept {
  */
 class LogMessage {
 public:
+  LogMessage() noexcept = default;
+
   LogMessage(std::chrono::system_clock::time_point timestamp, LogLevel level,
              std::string tag, std::string message) noexcept
       : _timestamp(timestamp), _level(level), _tag(std::move(tag)),
@@ -85,8 +88,8 @@ public:
   }
 
 private:
-  std::chrono::system_clock::time_point _timestamp;
-  LogLevel _level;
+  std::chrono::system_clock::time_point _timestamp{};
+  LogLevel _level{LogLevel::None};
   std::string _tag;
   std::string _message;
 };
@@ -103,10 +106,28 @@ public:
 
   /**
    * @brief Processes and outputs a log message.
-   * CAREFUL: This should not block.
    * @param message The log message to append.
    */
   virtual void consume(const LogMessage &message) = 0;
+};
+
+/**
+ * @brief Metrics for monitoring the async logging system.
+ */
+struct SinkerMetrics {
+  size_t dropped_count{0}; ///< Messages dropped due to full queue
+  size_t queued_count{0};  ///< Messages currently in queue
+  size_t capacity{0};      ///< Queue capacity
+  bool is_running{false};  ///< Whether async dispatch is active
+};
+
+/**
+ * @brief Configuration for the async dispatch system.
+ */
+struct SinkerConfig {
+  size_t task_stack_size = 4096;
+  int task_priority = 5;
+  int task_core = -1; ///< -1 = any core
 };
 
 /**
@@ -115,6 +136,13 @@ public:
  * This class manages a list of sinkers and forwards each log message
  * to all registered sinkers, subject to level filtering.
  * It is implemented as a thread-safe singleton.
+ *
+ * Supports both synchronous and asynchronous dispatch modes:
+ * - Synchronous (default): Messages are dispatched immediately to sinks
+ * - Asynchronous: Messages are queued and dispatched by a worker task
+ *
+ * Call init() to enable async mode. If init() is not called or fails,
+ * dispatch falls back to synchronous behavior.
  */
 class Sinker {
 public:
@@ -157,17 +185,70 @@ public:
 
   /**
    * @brief Forwards a log message to all registered sinkers.
-   * This is intended for internal use by the Logger class.
+   *
+   * If async mode is active (init() was called), messages are queued
+   * for the worker task. Otherwise, dispatch is synchronous.
+   *
    * @param message The message to dispatch.
    */
   void dispatch(const LogMessage &message) noexcept;
+
+  // --- Async API ---
+
+  /**
+   * @brief Initialize the async dispatch system.
+   *
+   * Must be called before logging if async behavior is desired.
+   * If not called (or on platforms without OS support), dispatch()
+   * uses synchronous behavior.
+   *
+   * @param config Optional configuration for the worker task.
+   */
+  void init(const SinkerConfig &config = {}) noexcept;
+
+  /**
+   * @brief Shutdown the async dispatch system.
+   *
+   * Flushes all queued messages to sinks before stopping.
+   */
+  void shutdown() noexcept;
+
+  /**
+   * @brief Flush all queued messages synchronously.
+   *
+   * Blocks until the queue is empty or timeout expires.
+   *
+   * @param timeout_ms Maximum time to wait in milliseconds.
+   * @return true if queue is empty, false if timeout expired.
+   */
+  [[nodiscard]] bool flush(uint32_t timeout_ms = 5000) noexcept;
+
+  /**
+   * @brief Check if async dispatch is running.
+   */
+  [[nodiscard]] bool is_running() const noexcept;
+
+  /**
+   * @brief Get current metrics for monitoring.
+   */
+  [[nodiscard]] SinkerMetrics get_metrics() const noexcept;
 
 private:
   Sinker() = default;
 
   std::atomic<LogLevel> _global_level{LogLevel::Info};
   std::vector<std::shared_ptr<ISink>> _sinkers;
-  mutable std::recursive_mutex _mutex;
+  mutable std::mutex _sinkers_mutex;
+
+  // Async infrastructure
+  static constexpr size_t QUEUE_CAPACITY = 64;
+  std::unique_ptr<RingBuffer<LogMessage, QUEUE_CAPACITY>> _queue;
+  std::atomic<bool> _running{false};
+  std::atomic<bool> _shutdown_requested{false};
+
+  os::TaskHandle _task{};
+  static void _task_entry(void *arg) noexcept;
+  void _process_queue() noexcept;
 
   /**
    * @brief Internal implementation of the dispatch logic.
@@ -177,15 +258,19 @@ private:
 };
 
 /**
- * @brief Provides a logging interface for sending formatted log messages.
+ * @brief Lightweight logger that formats and dispatches log messages.
  *
- * Each Loggable object contains a Logger. The Logger formats the
- * message and forwards it to the central Sinker.
+ * Logger is a simple value type holding only a tag string. It can be
+ * used standalone or as a member of Loggable-derived classes.
  */
 class Logger {
 public:
-  Logger(const Logger &) = delete;
-  Logger &operator=(const Logger &) = delete;
+  explicit Logger(std::string_view tag) noexcept : _tag(tag) {}
+
+  Logger(const Logger &) = default;
+  Logger &operator=(const Logger &) = default;
+  Logger(Logger &&) noexcept = default;
+  Logger &operator=(Logger &&) noexcept = default;
   ~Logger() noexcept = default;
 
   /**
@@ -200,7 +285,7 @@ public:
    * @param level The message's severity level.
    * @param format_str The fmt-style format string.
    * @param args Arguments for the format string.
-   * @note Use the LOGF macro to auto-prepend function name.
+   * @note Use the LOG macro to auto-prepend function name.
    */
   template <typename... Args>
   void logf(LogLevel level, fmt::format_string<Args...> format_str,
@@ -214,11 +299,8 @@ public:
     log(level, std::string_view(buf.data(), buf.size()));
   }
 
-  // Private constructor, only Loggable can create it.
-  explicit Logger(Loggable &owner) : _owner(owner) {}
-
-  Loggable &_owner;
-  friend class Loggable;
+private:
+  std::string_view _tag;
 };
 
 /**
@@ -229,7 +311,7 @@ public:
  */
 class Loggable {
 public:
-  explicit Loggable(std::string_view name) : _name(name) {}
+  explicit Loggable(std::string_view name) noexcept : _logger(name) {}
   Loggable(const Loggable &) = delete;
   Loggable &operator=(const Loggable &) = delete;
   Loggable(Loggable &&) noexcept = delete;
@@ -238,16 +320,11 @@ public:
 
   /**
    * @brief Returns a reference to the Logger instance for this object.
-   * The Logger is created on first access.
    */
-  [[nodiscard]] Logger &logger() noexcept;
+  [[nodiscard]] Logger &logger() noexcept { return _logger; }
 
 private:
-  friend class Logger;
-  std::string_view _name;
-  mutable std::mutex _logger_mutex;
-  mutable std::unique_ptr<Logger> _logger;
-  mutable std::once_flag _logger_init_flag;
+  Logger _logger;
 };
 
 } // namespace loggable
@@ -260,14 +337,5 @@ private:
  *
  * Usage: LOGF(LogLevel::Info, "Hello, {}!", name);
  */
-#define LOGF(level, format_str, ...)                                           \
+#define LOG(level, format_str, ...)                                            \
   logger().logf(level, "{}: " format_str, __func__ __VA_OPT__(, ) __VA_ARGS__)
-
-/**
- * @brief Macro for logging with automatic function name prefix.
- * @param level The log level (e.g., LogLevel::Info).
- * @param message The message to log.
- *
- * Usage: LOG(LogLevel::Info, "Hello, world!");
- */
-#define LOG(level, message) logger().log(level, message)

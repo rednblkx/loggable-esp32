@@ -88,30 +88,22 @@ public:
 // Test loggable class
 class TestLoggable : public Loggable {
 public:
-    TestLoggable(const char* name) : _name(name) {}
+    TestLoggable(const char* name) : Loggable(name) {}
     
     void log_something(LogLevel level, const char* message) {
         logger().log(level, message);
     }
-
-protected:
-    std::string_view log_name() const noexcept override {
-        return _name;
-    }
-
-private:
-    const char* _name;
 };
 
 static TestSink* test_sink = nullptr;
 
 void test_log_level_to_string() {
-    TEST_ASSERT_EQUAL_STRING("ERROR", log_level_to_string(LogLevel::Error));
-    TEST_ASSERT_EQUAL_STRING("WARNING", log_level_to_string(LogLevel::Warning));
-    TEST_ASSERT_EQUAL_STRING("INFO", log_level_to_string(LogLevel::Info));
-    TEST_ASSERT_EQUAL_STRING("DEBUG", log_level_to_string(LogLevel::Debug));
-    TEST_ASSERT_EQUAL_STRING("VERBOSE", log_level_to_string(LogLevel::Verbose));
-    TEST_ASSERT_EQUAL_STRING("NONE", log_level_to_string(LogLevel::None));
+    TEST_ASSERT_EQUAL_STRING("E", log_level_to_string(LogLevel::Error));
+    TEST_ASSERT_EQUAL_STRING("W", log_level_to_string(LogLevel::Warning));
+    TEST_ASSERT_EQUAL_STRING("I", log_level_to_string(LogLevel::Info));
+    TEST_ASSERT_EQUAL_STRING("D", log_level_to_string(LogLevel::Debug));
+    TEST_ASSERT_EQUAL_STRING("V", log_level_to_string(LogLevel::Verbose));
+    TEST_ASSERT_EQUAL_STRING("N", log_level_to_string(LogLevel::None));
 }
 
 void test_is_log_level_enabled() {
