@@ -1,6 +1,7 @@
 #include "loggable.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <string_view>
@@ -190,7 +191,7 @@ void Logger::log(LogLevel level, std::string_view message) noexcept {
     if (!is_log_level_enabled(level, Sinker::instance().get_level())) {
         return;
     }
-    const auto now = std::chrono::system_clock::now();
+    const auto now = std::chrono::high_resolution_clock::time_point(std::chrono::milliseconds(os::get_backend()->get_time_ms()));
     LogMessage msg(now, level, std::string(_tag), std::string(message));
     Sinker::instance().dispatch(msg);
 }

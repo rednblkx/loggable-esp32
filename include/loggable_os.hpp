@@ -114,6 +114,12 @@ public:
      * @param ms Delay in milliseconds.
      */
     virtual void delay_ms(uint32_t ms) noexcept = 0;
+
+    /**
+     * @brief Get the current time in milliseconds.
+     * @return Current time in milliseconds.
+     */
+    virtual uint32_t get_time_ms() noexcept = 0;
 };
 
 /**
