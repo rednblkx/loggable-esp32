@@ -1,8 +1,7 @@
 #include "loggable_os.hpp"
 #include <atomic>
 
-namespace loggable {
-namespace os {
+namespace loggable::os {
 
 namespace {
 std::atomic<IAsyncBackend*> g_backend{nullptr};
@@ -16,5 +15,5 @@ IAsyncBackend* get_backend() noexcept {
     return g_backend.load(std::memory_order_acquire);
 }
 
-} // namespace os
-} // namespace loggable
+} // namespace loggable::os
+
