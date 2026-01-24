@@ -11,6 +11,7 @@
 #include <fmt/core.h>
 #include <fmt/format.h>
 
+#include "fmt/color.h"
 #include "loggable_os.hpp"
 
 namespace loggable {
@@ -170,6 +171,11 @@ void Sinker::_process_queue() noexcept {
         if (msg) {
             std::lock_guard<std::mutex> lock(_sinkers_mutex);
             _dispatch_internal(*msg);
+        }
+
+        auto metrics = get_metrics();
+        if (metrics.dropped_count > 0) {
+            fmt::print(fg(fmt::color::orange), "[{}][W][{}][{}:{}] Dropped {} log messages\n", os::get_backend()->get_time_ms(), "Loggable::Sinker", __func__, __LINE__, metrics.dropped_count);
         }
 
         if (_shutdown_requested.load(std::memory_order_acquire) &&
