@@ -202,7 +202,11 @@ void Logger::log(LogLevel level, std::string_view message) noexcept {
     if (!is_log_level_enabled(level, Sinker::instance().get_level())) {
         return;
     }
-    const auto now = std::chrono::high_resolution_clock::time_point(std::chrono::milliseconds(os::get_backend()->get_time_ms()));
+    auto now = std::chrono::system_clock::now();
+    auto *backend = os::get_backend();
+    if (backend) {
+        now = std::chrono::system_clock::time_point(std::chrono::milliseconds(backend->get_time_ms()));
+    }
     LogMessage msg(now, level, std::string(_tag), std::string(message));
     Sinker::instance().dispatch(msg);
 }
