@@ -15,7 +15,9 @@ struct SemaphoreHandle {
         return _handle != nullptr;
     }
 
-    [[nodiscard]] bool operator==(const SemaphoreHandle&) const noexcept = default;
+    [[nodiscard]] bool operator==(const SemaphoreHandle& other) const noexcept {
+        return _handle == other._handle;
+    }
 };
 
 /**
@@ -28,7 +30,9 @@ struct TaskHandle {
         return _handle != nullptr;
     }
 
-    [[nodiscard]] bool operator==(const TaskHandle&) const noexcept = default;
+    [[nodiscard]] bool operator==(const TaskHandle& other) const noexcept {
+        return _handle == other._handle;
+    }
 };
 
 /**
