@@ -33,7 +33,12 @@ void Sinker::add_sinker(std::shared_ptr<ISink> sinker) noexcept {
 void Sinker::remove_sinker(const std::shared_ptr<ISink> &sinker) noexcept {
     if (sinker) {
         std::lock_guard<std::mutex> lock(_sinkers_mutex);
+#if __cplusplus >= 202002L
         std::erase(_sinkers, sinker);
+#else
+        _sinkers.erase(std::remove(_sinkers.begin(), _sinkers.end(), sinker), _sinkers.end());
+#endif
+
     }
 }
 

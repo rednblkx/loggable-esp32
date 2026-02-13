@@ -337,5 +337,11 @@ private:
  *
  * Usage: LOGF(LogLevel::Info, "Hello, {}!", name);
  */
+#if __cplusplus >= 202002L
 #define LOG(level, format_str, ...)                                            \
   logger().logf(level, "{}: " format_str, __func__ __VA_OPT__(, ) __VA_ARGS__)
+#else
+// C++17 fallback: use ## to swallow the comma when __VA_ARGS__ is empty
+#define LOG(level, format_str, ...)                                            \
+  logger().logf(level, "{}: " format_str, __func__, ##__VA_ARGS__)
+#endif
