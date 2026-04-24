@@ -125,7 +125,7 @@ struct SinkerMetrics {
  * @brief Configuration for the async dispatch system.
  */
 struct SinkerConfig {
-  size_t task_stack_size = 3580;
+  size_t task_stack_size = 4096;
   int task_priority = 5;
   int task_core = -1; ///< -1 = any core
 };
