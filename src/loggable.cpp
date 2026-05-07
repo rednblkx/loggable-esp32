@@ -181,6 +181,7 @@ void Sinker::_process_queue() noexcept {
         auto metrics = get_metrics();
         if (metrics.dropped_count > 0) {
             fmt::print(fg(fmt::color::orange), "[{}][W][{}][{}:{}] Dropped {} log messages\n", os::get_backend()->get_time_ms(), "Loggable::Sinker", __func__, __LINE__, metrics.dropped_count);
+            metrics.dropped_count = 0;
         }
 
         if (_shutdown_requested.load(std::memory_order_acquire) &&
