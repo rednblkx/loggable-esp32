@@ -41,7 +41,7 @@ struct TaskHandle {
 struct TaskConfig {
     const char* name = "log_dispatch";
     size_t stack_size = 4096;
-    int priority = 5;
+    int priority = 10;
     int core = -1; ///< -1 = any core
 };
 
